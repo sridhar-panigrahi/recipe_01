@@ -798,3 +798,200 @@ function resetSettingsToDefaults() {
     showToast("Settings reset");
   }
 }
+function saveCorrection() {
+  const idx = state.currentEditIndex;
+  if (idx < 0 || idx >= state.parsedIngredients.length) {
+    showToast("No ingredient selected", "error");
+    return;
+  }
+  const ing = state.parsedIngredients[idx];
+  const sel = document.querySelector('input[name="suggestion"]:checked');
+  let qty, unit, note;
+  if (sel) {
+    qty = parseFloat(sel.dataset.qty);
+    unit = sel.dataset.unit || "";
+    note = sel.dataset.note || "Suggestion";
+  } else {
+    qty = parseFloat(document.getElementById("customQuantity").value);
+    unit = document.getElementById("customUnit").value || "";
+    note = document.getElementById("customNote").value || "Custom";
+    if (isNaN(qty) || qty <= 0) {
+      showToast("Enter valid quantity", "error");
+      return;
+    }
+  }
+  state.corrections[ing.original.toLowerCase().trim()] = {
+    quantity: qty,
+    unit,
+    note,
+    ingredient: ing.ingredient,
+  };
+  saveCorrections();
+  const inp = document.getElementById("recipeInput").value;
+  if (inp.trim()) {
+    state.parsedIngredients = parseAllIngredients(inp);
+    renderResults();
+  }
+  closeEditorModal();
+  showToast("Correction saved!");
+}
+
+function exportJSON() {
+  const notes = document.getElementById("recipeNotes")?.value || "";
+  const data = {
+    ingredients: state.parsedIngredients.map((i) => ({
+      original: i.original,
+      quantity: i.displayQuantity,
+      unit: i.displayUnit,
+      ingredient: i.ingredient,
+      notes: i.notes.join(", "),
+      ambiguous: i.ambiguous,
+    })),
+    recipeNotes: notes,
+  };
+  downloadFile(
+    JSON.stringify(data, null, 2),
+    "ingredients.json",
+    "application/json"
+  );
+  showToast("JSON exported!");
+}
+
+function exportCSV() {
+  const notes = document.getElementById("recipeNotes")?.value || "";
+  const h = "original,quantity,unit,ingredient,notes,ambiguous";
+  const r = state.parsedIngredients.map(
+    (i) =>
+      `"${i.original.replace(/"/g, '""')}",${i.displayQuantity ?? ""},${
+        i.displayUnit || ""
+      },"${i.ingredient.replace(/"/g, '""')}","${i.notes
+        .join(", ")
+        .replace(/"/g, '""')}",${i.ambiguous}`
+  );
+  // Add recipe notes at the end
+  const notesSection = notes
+    ? `\n\n"RECIPE NOTES"\n"${notes.replace(/"/g, '""')}"`
+    : "";
+  downloadFile(
+    [h, ...r].join("\n") + notesSection,
+    "ingredients.csv",
+    "text/csv"
+  );
+  showToast("CSV exported!");
+}
+
+async function copyToClipboard() {
+  const notes = document.getElementById("recipeNotes")?.value || "";
+  let t = state.parsedIngredients
+    .map(
+      (i) =>
+        `${i.displayQuantity ?? ""} ${i.displayUnit || ""} ${i.ingredient}${
+          i.notes.length ? ` (${i.notes.join(", ")})` : ""
+        }`
+    )
+    .join("\n");
+  if (notes) t += `\n\n--- Notes ---\n${notes}`;
+  try {
+    await navigator.clipboard.writeText(t);
+  } catch {
+    const ta = document.createElement("textarea");
+    ta.value = t;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+  }
+  showToast("Copied!");
+}
+
+function downloadFile(content, filename, type) {
+  const b = new Blob([content], { type }),
+    u = URL.createObjectURL(b),
+    a = document.createElement("a");
+  a.href = u;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(u);
+}
+
+// ============================================
+// BAR CHART & ALTERNATIVES (No AI)
+// ============================================
+
+// Static healthier alternatives database
+const ALTERNATIVES_DB = {
+  butter: { alt: "Olive oil or Ghee", reason: "Healthier unsaturated fats" },
+  sugar: {
+    alt: "Honey or Jaggery",
+    reason: "Natural sweeteners with minerals",
+  },
+  cream: { alt: "Greek Yogurt", reason: "More protein, less fat" },
+  flour: { alt: "Whole Wheat Flour", reason: "More fiber & nutrients" },
+  maida: { alt: "Whole Wheat Flour", reason: "Higher fiber content" },
+  oil: { alt: "Olive Oil or Coconut Oil", reason: "Heart-healthy fats" },
+  salt: { alt: "Pink Himalayan Salt", reason: "Contains trace minerals" },
+  rice: { alt: "Brown Rice or Quinoa", reason: "More fiber & protein" },
+  milk: {
+    alt: "Almond or Oat Milk",
+    reason: "Lower calories, dairy-free option",
+  },
+  cheese: {
+    alt: "Cottage Cheese (Paneer)",
+    reason: "Higher protein, lower fat",
+  },
+  potato: { alt: "Sweet Potato", reason: "More vitamins & fiber" },
+  pasta: { alt: "Whole Grain Pasta", reason: "Higher fiber content" },
+  bread: { alt: "Whole Grain Bread", reason: "More nutrients & fiber" },
+  egg: { alt: "Egg Whites", reason: "Lower cholesterol" },
+  mayonnaise: { alt: "Greek Yogurt", reason: "Less fat, more protein" },
+  soda: { alt: "Sparkling Water", reason: "Zero calories" },
+};
+
+function renderAlternatives() {
+  const container = document.getElementById("alternativesList");
+  if (!container) return;
+
+  if (!state.parsedIngredients.length) {
+    container.innerHTML =
+      '<div class="alt-empty">Parse ingredients to see healthier alternatives</div>';
+    return;
+  }
+
+  // Find matching alternatives
+  const alternatives = [];
+  state.parsedIngredients.forEach((ing) => {
+    const name = ing.ingredient.toLowerCase();
+    for (const [key, value] of Object.entries(ALTERNATIVES_DB)) {
+      if (name.includes(key) && !alternatives.find((a) => a.original === key)) {
+        alternatives.push({
+          original: ing.ingredient,
+          alternative: value.alt,
+          reason: value.reason,
+        });
+        break;
+      }
+    }
+  });
+
+  if (!alternatives.length) {
+    container.innerHTML =
+      '<div class="alt-empty">No alternatives found for these ingredients</div>';
+    return;
+  }
+
+  container.innerHTML = alternatives
+    .slice(0, 5)
+    .map(
+      (alt) => `
+    <div class="alt-item">
+      <div class="alt-item-header">${escapeHtml(alt.original)} → ${escapeHtml(
+        alt.alternative
+      )}</div>
+      <div class="alt-item-sub">${escapeHtml(alt.reason)}</div>
+    </div>
+  `
+    )
+    .join("");
+}
