@@ -207,13 +207,6 @@ Designed for clean cooking workflows, automation, and digital recipe storage.
 
 ---
 
-### Want me to:
-
-- Generate a **live GitHub description**
-- Create a **logo + favicon**
-- Make a **deployment script for Netlify/Vercel**
-- Convert this to a **PWA offline app**
-
-Just say:
+Deployed link 
 
 > https://ojt-recipeunitnormalizer.vercel.app/
