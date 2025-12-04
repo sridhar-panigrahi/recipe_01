@@ -311,3 +311,88 @@ function parseQuantity(text) {
     };
   return null;
 }
+function extractUnit(text) {
+  if (!text) return null;
+  const lt = text.toLowerCase();
+  const keys = Object.keys(UNIT_SYNONYMS).sort((a, b) => b.length - a.length);
+  for (const k of keys) {
+    const m = lt.match(new RegExp(`\\b${k}\\b`, "i"));
+    if (m)
+      return {
+        unit: m[0],
+        canonical: UNIT_SYNONYMS[k.toLowerCase()],
+        original: m[0],
+      };
+  }
+  return null;
+}
+
+function extractIngredient(text, qtyStr, unitStr) {
+  let r = text;
+  if (qtyStr) r = r.replace(qtyStr, "").trim();
+  if (unitStr) r = r.replace(new RegExp(`\\b${unitStr}\\b`, "gi"), "").trim();
+  const notes = [];
+  r = r
+    .replace(/\(([^)]+)\)/g, (_, c) => {
+      notes.push(c.trim());
+      return "";
+    })
+    .trim();
+  r = r.replace(/^[,\-–—:;]+|[,\-–—:;]+$/g, "").trim();
+  const words = r.split(/\s+/);
+  const parts = [];
+  for (const w of words) {
+    const cw = w.toLowerCase().replace(/,/g, "");
+    if (SIZE_WORDS.includes(cw)) {
+      notes.push(cw);
+      continue;
+    }
+    if (["of", "or", "and", "for"].includes(cw)) continue;
+    if (!PREPARATION_WORDS.includes(cw)) parts.push(w.replace(/,/g, ""));
+  }
+  for (const p of QUALITATIVE_PHRASES)
+    if (text.toLowerCase().includes(p) && !notes.includes(p)) notes.push(p);
+  let ing = parts.join(" ").trim();
+  for (const p of PREPARATION_WORDS)
+    ing = ing.replace(new RegExp(`\\b${p}\\b`, "gi"), "").trim();
+  ing = ing.replace(/\s+/g, " ").trim();
+  for (const [k, v] of Object.entries(INGREDIENT_SYNONYMS))
+    if (ing.toLowerCase().includes(k)) {
+      ing = v;
+      break;
+    }
+  return { ingredient: ing || "unknown", notes: notes.filter((n) => n) };
+}
+
+function checkAmbiguity(parsed, original) {
+  const reasons = [],
+    lo = original.toLowerCase();
+  if (parsed.quantity === null || isNaN(parsed.quantity))
+    reasons.push("No numeric quantity");
+  if (parsed.isRange)
+    reasons.push(`Range: ${parsed.quantityMin}-${parsed.quantityMax}`);
+  for (const s of SIZE_WORDS)
+    if (lo.includes(s)) {
+      reasons.push(`Size word "${s}"`);
+      break;
+    }
+  for (const i of IMPRECISE_WORDS)
+    if (lo.includes(i)) {
+      reasons.push(`Imprecise "${i}"`);
+      break;
+    }
+  for (const p of QUALITATIVE_PHRASES)
+    if (lo.includes(p)) {
+      reasons.push(`"${p}"`);
+      break;
+    }
+  if (!parsed.unit && parsed.quantity !== null)
+    reasons.push("No unit - treating as count");
+  return reasons;
+}
+
+function roundToPrecision(n) {
+  if (n == null || isNaN(n)) return n;
+  const m = Math.pow(10, state.settings.decimalPrecision);
+  return Math.round(n * m) / m;
+}
