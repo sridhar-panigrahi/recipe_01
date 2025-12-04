@@ -12,7 +12,7 @@
 
 ✅ Your Complete README.md
 
-(You can copy-paste directly into GitHub)
+https://github.com/sridhar-panigrahi/recipe_01/blob/main/README.md
 
 ⸻
 
