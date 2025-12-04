@@ -995,3 +995,152 @@ function renderAlternatives() {
     )
     .join("");
 }
+
+function updateSidePanels() {
+  renderAlternatives();
+}
+
+function initEventHandlers() {
+  const mmb = document.querySelector(".mobile-menu-btn"),
+    mm = document.getElementById("mobileMenu");
+  mmb?.addEventListener("click", () => {
+    const e = mmb.getAttribute("aria-expanded") === "true";
+    mmb.setAttribute("aria-expanded", !e);
+    mm.classList.toggle("active");
+  });
+  mm?.querySelectorAll("a").forEach((l) =>
+    l.addEventListener("click", () => {
+      mmb.setAttribute("aria-expanded", "false");
+      mm.classList.remove("active");
+    })
+  );
+  document.getElementById("sampleSelect")?.addEventListener("change", (e) => {
+    if (e.target.value && SAMPLE_RECIPES[e.target.value])
+      document.getElementById("recipeInput").value =
+        SAMPLE_RECIPES[e.target.value];
+    e.target.value = "";
+  });
+  document.getElementById("parseBtn")?.addEventListener("click", () => {
+    const inp = document.getElementById("recipeInput").value;
+    if (!inp.trim()) {
+      showToast("Enter recipe text", "error");
+      return;
+    }
+    state.parsedIngredients = parseAllIngredients(inp);
+    renderResults();
+    updateSidePanels();
+    showToast(`Parsed ${state.parsedIngredients.length} ingredient(s)`);
+  });
+  document
+    .getElementById("exportJsonBtn")
+    ?.addEventListener("click", exportJSON);
+  document.getElementById("exportCsvBtn")?.addEventListener("click", exportCSV);
+  document
+    .getElementById("copyClipboardBtn")
+    ?.addEventListener("click", copyToClipboard);
+  document
+    .getElementById("manageCorrectionsBtn")
+    ?.addEventListener("click", openCorrectionsModal);
+  document
+    .getElementById("settingsBtn")
+    ?.addEventListener("click", openSettingsModal);
+  document
+    .getElementById("closeSettingsModal")
+    ?.addEventListener("click", closeSettingsModal);
+  document
+    .getElementById("cancelSettingsBtn")
+    ?.addEventListener("click", closeSettingsModal);
+  document
+    .getElementById("saveSettingsBtn")
+    ?.addEventListener("click", saveSettingsFromModal);
+  document
+    .getElementById("resetSettingsBtn")
+    ?.addEventListener("click", resetSettingsToDefaults);
+  document.querySelectorAll('input[name="defaultSystem"]').forEach((r) =>
+    r.addEventListener("change", function () {
+      document.getElementById("preferredVolumeUnit").value =
+        this.value === "metric" ? "ml" : "cup";
+      document.getElementById("preferredWeightUnit").value =
+        this.value === "metric" ? "g" : "oz";
+    })
+  );
+  document
+    .getElementById("closeEditorModal")
+    ?.addEventListener("click", closeEditorModal);
+  document
+    .getElementById("dismissEditorBtn")
+    ?.addEventListener("click", closeEditorModal);
+  document
+    .getElementById("saveCorrectionBtn")
+    ?.addEventListener("click", saveCorrection);
+  document
+    .getElementById("closeCorrectionsModal")
+    ?.addEventListener("click", closeCorrectionsModal);
+  document
+    .getElementById("closeCorrectionsModalBtn")
+    ?.addEventListener("click", closeCorrectionsModal);
+  document
+    .getElementById("clearAllCorrectionsBtn")
+    ?.addEventListener("click", () => {
+      if (confirm("Clear all corrections?")) {
+        state.corrections = {};
+        saveCorrections();
+        renderCorrectionsList();
+        showToast("Cleared");
+        const inp = document.getElementById("recipeInput").value;
+        if (inp.trim()) {
+          state.parsedIngredients = parseAllIngredients(inp);
+          renderResults();
+        }
+      }
+    });
+  document.querySelectorAll(".modal-overlay").forEach((o) =>
+    o.addEventListener("click", (e) => {
+      if (e.target === o) o.hidden = true;
+    })
+  );
+  document.addEventListener("keydown", (e) => {
+    if (e.ctrlKey && e.key === "Enter") {
+      e.preventDefault();
+      document.getElementById("parseBtn")?.click();
+    }
+    if (e.key === "Escape") {
+      if (!document.getElementById("editorModal").hidden) closeEditorModal();
+      else if (!document.getElementById("correctionsModal").hidden)
+        closeCorrectionsModal();
+      else if (!document.getElementById("settingsModal").hidden)
+        closeSettingsModal();
+    }
+    if (
+      (e.key === "s" || e.key === "S") &&
+      !["INPUT", "TEXTAREA", "SELECT"].includes(
+        document.activeElement?.tagName
+      ) &&
+      document.getElementById("editorModal").hidden &&
+      document.getElementById("correctionsModal").hidden &&
+      document.getElementById("settingsModal").hidden
+    ) {
+      e.preventDefault();
+      openSettingsModal();
+    }
+  });
+  ["customQuantity", "customUnit", "customNote"].forEach((id) =>
+    document
+      .getElementById(id)
+      ?.addEventListener("input", () =>
+        document
+          .querySelectorAll('input[name="suggestion"]')
+          .forEach((r) => (r.checked = false))
+      )
+  );
+}
+
+function init() {
+  loadCorrections();
+  loadSettings();
+  initEventHandlers();
+  console.log("PantryClean initialized!");
+}
+if (document.readyState === "loading")
+  document.addEventListener("DOMContentLoaded", init);
+else init();
