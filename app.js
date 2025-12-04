@@ -458,3 +458,128 @@ function convertToSystem(qty, unit) {
     return convertWeightToPreferred(qty * ui.toG, state.settings);
   return { quantity: roundToPrecision(qty), unit };
 }
+function parseIngredientLine(line) {
+  const t = line.trim();
+  if (!t) return null;
+  const ck = t.toLowerCase();
+  if (state.corrections[ck]) {
+    const c = state.corrections[ck];
+    let dq = c.quantity,
+      du = c.unit;
+    if (c.quantity !== null && c.unit) {
+      const cv = convertToSystem(c.quantity, c.unit);
+      dq = cv.quantity;
+      du = cv.unit;
+    }
+    return {
+      original: t,
+      quantity: c.quantity,
+      quantityMin: null,
+      quantityMax: null,
+      unit: c.unit,
+      ingredient: c.ingredient || extractIngredient(t, "", "").ingredient,
+      notes: c.notes ? [c.notes] : [],
+      isRange: false,
+      ambiguous: false,
+      ambiguityReasons: [],
+      corrected: true,
+      correctionNote: c.note || "User correction",
+      displayQuantity: dq,
+      displayUnit: du,
+    };
+  }
+  const qr = parseQuantity(t),
+    ur = extractUnit(t);
+  const { ingredient, notes } = extractIngredient(
+    t,
+    qr?.original || "",
+    ur?.original || ""
+  );
+  const p = {
+    original: t,
+    quantity: qr?.value ?? null,
+    quantityMin: qr?.min ?? null,
+    quantityMax: qr?.max ?? null,
+    unit: ur?.canonical || (qr && !ur ? "piece" : ""),
+    ingredient,
+    notes,
+    isRange: qr?.isRange || false,
+    ambiguous: false,
+    ambiguityReasons: [],
+    corrected: false,
+    correctionNote: "",
+  };
+  const ar = checkAmbiguity(p, t);
+  p.ambiguous = ar.length > 0;
+  p.ambiguityReasons = ar;
+  if (p.quantity !== null && p.unit) {
+    const cv = convertToSystem(p.quantity, p.unit);
+    p.displayQuantity = cv.quantity;
+    p.displayUnit = cv.unit;
+  } else {
+    p.displayQuantity = p.quantity;
+    p.displayUnit = p.unit;
+  }
+  return p;
+}
+
+function parseAllIngredients(text) {
+  return text
+    .split("\n")
+    .map(parseIngredientLine)
+    .filter((p) => p);
+}
+
+function formatNumber(n) {
+  if (n == null || isNaN(n)) return "-";
+  return Number.isInteger(n)
+    ? n.toString()
+    : n.toFixed(2).replace(/\.?0+$/, "");
+}
+function escapeHtml(t) {
+  if (!t) return "";
+  const d = document.createElement("div");
+  d.textContent = t;
+  return d.innerHTML;
+}
+
+function renderResults() {
+  const c = document.getElementById("resultsContainer");
+  if (!state.parsedIngredients.length) {
+    c.innerHTML =
+      '<div class="empty-state"><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect x="8" y="8" width="48" height="48" rx="8" stroke="currentColor" stroke-width="2" stroke-dasharray="4 4"/><path d="M24 32h16M32 24v16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><p>Paste recipe text and click "Parse Ingredients"</p></div>';
+    return;
+  }
+  c.innerHTML = `<table class="results-table"><thead><tr><th>Original</th><th>Qty</th><th>Unit</th><th>Ingredient</th><th>Notes</th><th>Status</th></tr></thead><tbody>${state.parsedIngredients
+    .map(
+      (i, idx) =>
+        `<tr><td class="original-cell" title="${escapeHtml(
+          i.original
+        )}">${escapeHtml(i.original)}</td><td class="qty-cell">${
+          i.displayQuantity !== null ? formatNumber(i.displayQuantity) : "-"
+        }</td><td class="unit-cell">${
+          i.displayUnit || "-"
+        }</td><td>${escapeHtml(i.ingredient)}</td><td class="notes-cell">${
+          escapeHtml(i.notes.join(", ")) || "-"
+        }</td><td class="status-cell">${
+          i.corrected
+            ? `<span class="status-icon clickable" data-index="${idx}">🔁<span class="tooltip">${escapeHtml(
+                i.correctionNote
+              )}</span></span>`
+            : i.ambiguous
+            ? `<span class="status-icon clickable" data-index="${idx}">⚠️<span class="tooltip">${escapeHtml(
+                i.ambiguityReasons.join("; ")
+              )}</span></span>`
+            : '<span class="status-icon">✓</span>'
+        }</td></tr>`
+    )
+    .join("")}</tbody></table>`;
+  c.querySelectorAll(".status-icon.clickable").forEach((ic) => {
+    ic.addEventListener("click", () =>
+      openEditorModal(parseInt(ic.dataset.index))
+    );
+  });
+  document.getElementById("exportJsonBtn").disabled = false;
+  document.getElementById("exportCsvBtn").disabled = false;
+  document.getElementById("copyClipboardBtn").disabled = false;
+}
