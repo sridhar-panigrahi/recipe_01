@@ -151,3 +151,90 @@ const IMPRECISE_WORDS = [
   "some",
   "few",
 ];
+const QUALITATIVE_PHRASES = [
+  "to taste",
+  "as needed",
+  "as required",
+  "optional",
+  "or more",
+];
+const NUMBER_WORDS = {
+  zero: 0,
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+  a: 1,
+  an: 1,
+  half: 0.5,
+};
+const UNICODE_FRACTIONS = {
+  "½": 0.5,
+  "⅓": 1 / 3,
+  "⅔": 2 / 3,
+  "¼": 0.25,
+  "¾": 0.75,
+  "⅛": 0.125,
+};
+
+const SAMPLE_RECIPES = {
+  pancakes:
+    "2 cups all-purpose flour\n1 tablespoon sugar\n2 teaspoons baking powder\n1/2 teaspoon salt\n2 eggs\n1 3/4 cups milk\n1/4 cup melted butter",
+  "coriander-chutney":
+    "2 cups fresh coriander leaves\n1/2 cup mint leaves\n2 green chilies\n1 small onion, roughly chopped\n3-4 garlic cloves\nSalt to taste\n2 tbsp lemon juice",
+  "masala-egg-curry":
+    "4 eggs, hard boiled\n2 medium onions, finely chopped\n2 tomatoes, pureed\n1 tbsp ginger-garlic paste\n1/2 tsp turmeric powder\n1 tsp red chili powder\nA pinch of salt\n2 tbsp oil",
+  "test-cases":
+    "2 tbsp chopped fresh coriander\n1 small onion, finely chopped\n½ cup milk\n3–4 garlic cloves\nA pinch of salt\n2 eggs\n200 g paneer, cubed\n1 1/2 cups all-purpose flour\n2 tsp sugar or to taste\nOne bunch cilantro\n250ml water",
+};
+
+const DEFAULT_SETTINGS = {
+  unitSystem: "metric",
+  preferredVolumeUnit: "ml",
+  preferredWeightUnit: "g",
+  decimalPrecision: 2,
+  smallQuantityUnit: "teaspoon",
+};
+const state = {
+  parsedIngredients: [],
+  unitSystem: "metric",
+  corrections: {},
+  currentEditIndex: -1,
+  settings: { ...DEFAULT_SETTINGS },
+};
+
+// Storage Functions
+function loadCorrections() {
+  try {
+    state.corrections = JSON.parse(
+      localStorage.getItem("pantryClean_corrections") || "{}"
+    );
+  } catch (e) {
+    state.corrections = {};
+  }
+}
+function saveCorrections() {
+  try {
+    localStorage.setItem(
+      "pantryClean_corrections",
+      JSON.stringify(state.corrections)
+    );
+  } catch (e) {}
+}
+function loadSettings() {
+  try {
+    const s = localStorage.getItem("pantryClean_settings");
+    state.settings = s
+      ? { ...DEFAULT_SETTINGS, ...JSON.parse(s) }
+      : { ...DEFAULT_SETTINGS };
+    state.unitSystem = state.settings.unitSystem;
+  } catch (e) {
+    state.settings = { ...DEFAULT_SETTINGS };
+  }
+}
